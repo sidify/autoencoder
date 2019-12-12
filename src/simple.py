@@ -1,14 +1,18 @@
 from keras.layers import Input, Dense
 from keras.models import Model
 
-encoding_dim = 64
 input_img = Input(shape=(3072,))
-encoded = Dense(encoding_dim, activation='relu')(input_img)
-decoded =  Dense(3072, activation='sigmoid')(encoded)
+encoded = Dense(1024, activation='relu')(input_img)
+encoded = Dense(512, activation='relu')(encoded)
+encoded = Dense(256, activation='relu')(encoded)
+
+decoded = Dense(512, activation='relu') (encoded)
+decoded = Dense(1024, activation='relu') (decoded)
+decoded = Dense(3072, activation='sigmoid')(encoded)
 
 autoencoder = Model(input_img, decoded)
 encoder = Model(input_img, encoded)
-encoded_input = Input(shape=(encoding_dim,))
+encoded_input = Input(shape=(256,))
 decoder_layer = autoencoder.layers[-1]
 decoder = Model(encoded_input, decoder_layer(encoded_input))
 
