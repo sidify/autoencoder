@@ -1,12 +1,17 @@
-
-#create a codebook of 20,000 rotation, rotate them each 36 times randomly .
-#render the views and train a neural network
 import numpy as np
+import cv2
 
 from renderer.pysixd_stuff import view_sampler
+from renderer import meshrenderer_phong as mp
+from keras.layers import Input, Dense, Conv2D, MaxPooling2D, LSTM, Flatten, TimeDistributed, BatchNormalization
+from keras.models import Model
+from keras.models import Sequential
+from renderer import meshrenderer_phong as mp
+
+
 def viewsphere_for_embedding():
     num_cyclo = 36
-    min_n_views = 20000
+    min_n_views = 200
     radius = 700
     azimuth_range = (0, 2 * np.pi)
     elev_range = (-0.5 * np.pi, 0.5 * np.pi)
@@ -22,22 +27,55 @@ def viewsphere_for_embedding():
         for cyclo in np.linspace(0, 2. * np.pi, num_cyclo):
             rot_z = np.array([[np.cos(-cyclo), -np.sin(-cyclo), 0], [np.sin(-cyclo), np.cos(-cyclo), 0], [0, 0, 1]])
             Rs[i, :, :] = rot_z.dot(view['R'])
+            # print (Rs[i, :, :])
             i += 1
     return Rs
 
-R = viewsphere_for_embedding()
-print(len(R))
+if __name__ == "__main__" :
+    #create a codebook of 20,000 rotation, rotate them each 36 times randomly .
+    #render the views and train a neural network
 
-from keras.layers import Input, Dense, Conv2D, MaxPooling2D, LSTM
-from keras.models import Model
+    shape = (128,128,3)
+    input_img = Input(shape=(shape[0], shape[1], 3))
+    cnn = Sequential()
+    cnn.add(Conv2D(256, kernel_size=(3, 3), activation='relu', padding='same', input_shape=(shape[0], shape[1], 3)))
+    cnn.add(MaxPooling2D((2, 2), padding='same'))
+    cnn.add(Conv2D(128, (3, 3), activation='relu', padding='same'))
+    cnn.add(MaxPooling2D((2, 2), padding='same'))
+    cnn.add(Flatten())
 
-shape = (128, 128, 3)
-input_img = Input(shape=(shape[0], shape[1], 3))
-x = Conv2D(512, (3, 3), activation='relu', padding='same')(input_img)
-x = MaxPooling2D((2, 2), padding='same')(x)
-x = Conv2D(256, (3, 3), activation='relu', padding='same')(x)
-x = MaxPooling2D((2, 2), padding='same')(x)
-x = Conv2D(128, (3, 3), activation='relu', padding='same')(x)
-encoded = MaxPooling2D((2, 2), padding='same')(x)
+    model = Sequential()
+    #model.add(TimeDistributed(cnn))
+    #model.add(LSTM(64))
+    model.add(cnn)
+    model.add(Dense(64, activation='tanh'))
+    model.add(BatchNormalization())
+    model.add(Dense(16, activation='tanh'))
+    model.add(BatchNormalization())
+    model.add(Dense(3, activation='relu'))
 
-lstm = LSTM(64, return_sequences=False, input_shape)
+    model.compile(optimizer='adadelta', loss='binary_crossentropy')
+
+
+    Rs = viewsphere_for_embedding()
+
+    from sklearn.model_selection import train_test_split
+    _, _, y_train, y_test = train_test_split(Rs, Rs, test_size=0.1)
+    from data_generator import DataGenerator
+    train_gen = DataGenerator(y_train)
+    test_gen = DataGenerator(y_test)
+    imgs_test, y_ = test_gen.data_gen(y_test[:1])
+    print ("Org val:", y_[0])
+    model.fit_generator(generator=train_gen,
+                        validation_data=test_gen,
+                        epochs=1
+                        )
+
+
+    y = model.predict(imgs_test)
+    print ("Predicted ", y)
+
+
+
+
+
