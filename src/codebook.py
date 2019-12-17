@@ -1,12 +1,8 @@
 import numpy as np
-import cv2
 
 from renderer.pysixd_stuff import view_sampler
-from renderer import meshrenderer_phong as mp
 from keras.layers import Input, Dense, Conv2D, MaxPooling2D, LSTM, Flatten, TimeDistributed, BatchNormalization
-from keras.models import Model
 from keras.models import Sequential
-from renderer import meshrenderer_phong as mp
 
 
 def viewsphere_for_embedding():
@@ -58,22 +54,24 @@ if __name__ == "__main__" :
 
 
     Rs = viewsphere_for_embedding()
-
+    np.take(Rs,np.random.permutation(Rs.shape[0]),axis=0,out=Rs)
+    Rs = Rs[0:1000]
     from sklearn.model_selection import train_test_split
     _, _, y_train, y_test = train_test_split(Rs, Rs, test_size=0.1)
     from data_generator import DataGenerator
     train_gen = DataGenerator(y_train)
     test_gen = DataGenerator(y_test)
     imgs_test, y_ = test_gen.data_gen(y_test[:1])
-    print ("Org val:", y_[0])
     model.fit_generator(generator=train_gen,
                         validation_data=test_gen,
-                        epochs=1
+                        epochs=10, workers=0
                         )
 
 
     y = model.predict(imgs_test)
-    print ("Predicted ", y)
+
+    print ("Org val:", y_[0])
+    print ("Predicted ", y[0])
 
 
 
