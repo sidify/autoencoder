@@ -1,7 +1,7 @@
 import numpy as np
-
+import tensorflow as tf
 from renderer.pysixd_stuff import view_sampler
-from keras.layers import Input, Dense, Conv2D, MaxPooling2D, LSTM, Flatten, TimeDistributed, BatchNormalization
+from keras.layers import Dense, Conv2D, MaxPooling2D, LSTM, Flatten, TimeDistributed, BatchNormalization
 from keras.models import Sequential
 
 
@@ -31,8 +31,9 @@ if __name__ == "__main__" :
     #create a codebook of 20,000 rotation, rotate them each 36 times randomly .
     #render the views and train a neural network
 
+
     shape = (128,128,3)
-    input_img = Input(shape=(shape[0], shape[1], 3))
+    #input_img = Input(shape=(shape[0], shape[1], 3))
     cnn = Sequential()
     cnn.add(Conv2D(256, kernel_size=(3, 3), activation='relu', padding='same', input_shape=(shape[0], shape[1], 3)))
     cnn.add(MaxPooling2D((2, 2), padding='same'))
@@ -54,24 +55,29 @@ if __name__ == "__main__" :
 
 
     Rs = viewsphere_for_embedding()
-    np.take(Rs,np.random.permutation(Rs.shape[0]),axis=0,out=Rs)
-    Rs = Rs[0:1000]
+    #np.take(Rs,np.random.permutation(Rs.shape[0]),axis=0,out=Rs)
+    #Rs = Rs[0:1000]
     from sklearn.model_selection import train_test_split
     _, _, y_train, y_test = train_test_split(Rs, Rs, test_size=0.1)
+
     from data_generator import DataGenerator
-    train_gen = DataGenerator(y_train)
-    test_gen = DataGenerator(y_test)
-    imgs_test, y_ = test_gen.data_gen(y_test[:1])
-    model.fit_generator(generator=train_gen,
-                        validation_data=test_gen,
-                        epochs=10, workers=0
-                        )
+    from renderer import meshrenderer_phong as mp
+    cad_model = '/home/sid/thesis/ply/models_cad/obj_05_red.ply'
+    renderer = mp.Renderer(cad_model, samples=1, vertex_tmp_store_folder='.', clamp=False, vertex_scale=1.0)
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
+    with tf.device('/gpu:0'):
 
+        train_gen = DataGenerator(y_train, "train", renderer)
+        test_gen = DataGenerator(y_test, "test", renderer)
+        imgs_test, y_ = test_gen.data_gen(y_test[:1])
+        model.fit_generator(generator=train_gen,
+                            validation_data=test_gen,
+                            epochs=3, workers=0
+                            )
 
-    y = model.predict(imgs_test)
-
-    print ("Org val:", y_[0])
-    print ("Predicted ", y[0])
+        print ("Org val:", y_[0])
+        print ("Predicted ", y[0])
 
 
 
